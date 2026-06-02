@@ -19,6 +19,31 @@ const msToMin = (ms) => {
   return `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
 };
 
+const formatTaipeiTime = (value) => {
+  if (!value) return '—';
+
+  const raw = String(value);
+  const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
+
+  // 後端 PostgreSQL / Render 通常回傳 UTC，但字串可能沒有 Z。
+  // 若沒有時區標記，補上 Z，讓瀏覽器先當成 UTC，再轉成台灣時間。
+  const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(normalized);
+  const date = new Date(hasTimezone ? normalized : `${normalized}Z`);
+
+  if (Number.isNaN(date.getTime())) return '—';
+
+  return date.toLocaleString('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+};
+
 function StatCard({ label, value, sub }) {
   return (
     <div className="bg-zinc-900 rounded-2xl p-4 flex flex-col gap-1 border border-zinc-800">
@@ -360,7 +385,7 @@ export default function App() {
         <div className="flex items-center gap-4">
           {etlStatus && (
             <span className="text-xs text-zinc-500">
-              Last sync: {etlStatus.run_at ? new Date(etlStatus.run_at).toLocaleString() : '—'}
+              Last sync: {formatTaipeiTime(etlStatus.run_at)}
               <span
                 className={`ml-2 inline-block w-2 h-2 rounded-full ${
                   etlStatus.status === 'success' ? 'bg-green-400' : 'bg-red-400'
