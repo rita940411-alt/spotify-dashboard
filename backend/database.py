@@ -6,9 +6,14 @@ import os
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not set. Please set it in Render environment variables.")
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()
@@ -16,6 +21,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
 
 def init_db():
     with engine.connect() as conn:
@@ -31,13 +37,16 @@ def init_db():
                 explicit BOOLEAN,
                 preview_url TEXT,
                 external_url TEXT,
+                region VARCHAR(100),
+                chart_rank INTEGER,
                 fetched_at TIMESTAMP DEFAULT NOW()
             );
         """))
+
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS audio_features (
                 id SERIAL PRIMARY KEY,
-                track_id VARCHAR(100) REFERENCES tracks(track_id) ON DELETE CASCADE,
+                track_id VARCHAR(100) UNIQUE REFERENCES tracks(track_id) ON DELETE CASCADE,
                 danceability FLOAT,
                 energy FLOAT,
                 valence FLOAT,
@@ -49,6 +58,7 @@ def init_db():
                 fetched_at TIMESTAMP DEFAULT NOW()
             );
         """))
+
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS etl_logs (
                 id SERIAL PRIMARY KEY,
@@ -58,5 +68,31 @@ def init_db():
                 message TEXT
             );
         """))
+
+        conn.execute(text("""
+            ALTER TABLE tracks
+            ADD COLUMN IF NOT EXISTS region VARCHAR(100);
+        """))
+
+        conn.execute(text("""
+            ALTER TABLE tracks
+            ADD COLUMN IF NOT EXISTS chart_rank INTEGER;
+        """))
+
+        # Remove duplicate audio feature rows before creating a unique index.
+        # Keep the newest row by keeping the larger id.
+        conn.execute(text("""
+            DELETE FROM audio_features a
+            USING audio_features b
+            WHERE a.track_id = b.track_id
+              AND a.id < b.id;
+        """))
+
+        conn.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS audio_features_track_id_unique_idx
+            ON audio_features(track_id);
+        """))
+
         conn.commit()
-    print("✅ Database initialized")
+
+    print("Database initialized")
