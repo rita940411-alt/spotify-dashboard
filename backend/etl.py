@@ -96,7 +96,16 @@ def run_etl():
                                 VALUES
                                     (:track_id, :danceability, :energy, :valence, :tempo,
                                      :acousticness, :instrumentalness, :speechiness, :loudness, NOW())
-                                ON CONFLICT DO NOTHING;
+                                ON CONFLICT (track_id) DO UPDATE SET
+                                    danceability = EXCLUDED.danceability,
+                                    energy = EXCLUDED.energy,
+                                    valence = EXCLUDED.valence,
+                                    tempo = EXCLUDED.tempo,
+                                    acousticness = EXCLUDED.acousticness,
+                                    instrumentalness = EXCLUDED.instrumentalness,
+                                    speechiness = EXCLUDED.speechiness,
+                                    loudness = EXCLUDED.loudness,
+                                    fetched_at = NOW();
                             """), {
                                 "track_id":         f["id"],
                                 "danceability":     f["danceability"],
@@ -108,6 +117,7 @@ def run_etl():
                                 "speechiness":      f["speechiness"],
                                 "loudness":         f["loudness"],
                             })
+                            
 
                     total_fetched += len(track_data)
                     print(f"✅ {region}: {len(track_data)} tracks")
